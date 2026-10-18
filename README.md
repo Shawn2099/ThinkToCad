@@ -77,8 +77,18 @@ policy -> cancellation -> input guardrails -> span
 ```
 
 Domain tools: `list_mechanisms`, `retrieve_knowledge`, `get_contract`, `check_contract`,
-`dfm_check`, `save_attempt`, `save_lesson`. See `guides/AI_AGENT_TOOLKIT_GUIDE.md` for
-the full pattern set and `thinktocad/tools/README.md` for the module map.
+`dfm_check`, `check_gate`, `save_attempt`, `save_lesson`.
+
+### MCP surface
+
+* **tools** — the domain tools above.
+* **resources** — `thinktocad://skill`, `thinktocad://knowledge/mechanisms/{id}`,
+  `thinktocad://knowledge/constraints/{name}`, `thinktocad://knowledge/lessons/{name}`,
+  `thinktocad://knowledge/graph`, `thinktocad://contracts/{name}`.
+* **prompts** — `design_flow`, `design_stage`, `dfm_rules` (slash-commands in the client).
+
+`thinktocad-doctor` checks the repo layout and the external CAD backends. See
+`guides/AI_AGENT_TOOLKIT_GUIDE.md` and `thinktocad/tools/README.md` for the module map.
 
 ## The flow
 

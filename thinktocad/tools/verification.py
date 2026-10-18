@@ -49,6 +49,11 @@ def _slug(text: str) -> str:
     return re.sub(r"[^a-z0-9]+", "_", text.strip().lower()).strip("_") or "lesson"
 
 
+def dfm_rules_for(process: str) -> dict[str, float] | None:
+    """Return the DFM rule set for a process, or ``None`` if unknown."""
+    return _DFM_RULES.get(process.strip().lower())
+
+
 @safe_tool(side_effect="read", timeout_s=10)
 def dfm_check(process: str, features: dict, stock: dict | None = None) -> dict:
     """Check proposed dimensions against manufacturing (DFM) rules for a process.

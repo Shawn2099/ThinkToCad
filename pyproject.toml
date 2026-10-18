@@ -30,6 +30,7 @@ dev = ["pytest>=8", "ruff>=0.5"]
 [project.scripts]
 thinktocad-install-skill = "thinktocad.scripts.install_skill:main"
 thinktocad-init = "thinktocad.scripts.init_config:main"
+thinktocad-doctor = "thinktocad.scripts.doctor:main"
 thinktocad-mcp = "thinktocad.mcp.server:main"
 # NOTE: do NOT declare build123d-mcp / freecad-mcp / matlab-mcp here. Those console
 # scripts belong to the external MCP servers (pzfreo/build123d-mcp, neka-nat/freecad-mcp,

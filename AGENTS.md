@@ -34,6 +34,7 @@ not necessarily implemented — check the code before relying on it.
   only** — geometry/verify/sim come from the external `build123d-mcp` / `freecad-mcp` /
   `matlab-mcp` servers (pzfreo, neka-nat, MathWorks).
 - `thinktocad-init --client opencode|vscode|claude|cursor` — writes/merges the MCP config.
+- `thinktocad-doctor` — checks the repo layout and the external CAD backends.
 - `python -m thinktocad.evals.tasks` — the deterministic domain eval suite (CI gates on it).
 - Windows (this environment): the README's `&` background syntax is Unix-only —
   drop it or use `Start-Process`.
@@ -47,6 +48,9 @@ not necessarily implemented — check the code before relying on it.
 - The design flow + gates (`thinktocad/flow.py`); the ReAct loop
   (`thinktocad/runtime/loop.py`, model injected); visual-check helpers
   (`thinktocad/runtime/visual.py`); the eval harness + tool simulator (`thinktocad/evals/`).
+- The MCP surface is three primitives: **tools** (`thinktocad/tools/`), **resources**
+  (`thinktocad/mcp/resources.py` — knowledge + skill as URIs), **prompts**
+  (`thinktocad/mcp/prompts.py` — flow / stage / DFM as slash-commands).
 - Geometry/verify/sim are **not** implemented here — use the external MCP servers.
 - Tests: `tests/` (`pytest -q`); CI in `.github/workflows/ci.yml`; lint config `[tool.ruff]`.
 
