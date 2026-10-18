@@ -63,8 +63,10 @@ def flow_text() -> str:
         "- G3 publish: rebuild at parameter extremes, all specs green",
         "- G4 human: the user approves (the final word)",
         "",
-        "Verification order: backend tools (build123d/FreeCAD/MATLAB via MCP) -> advisory "
-        "VLM render check -> the user in FreeCAD.",
+        (
+            "Verification order: backend tools (build123d/FreeCAD/MATLAB via MCP) "
+            "-> advisory VLM render check -> the user in FreeCAD."
+        ),
         "The kernel is the referee: never declare a part valid yourself.",
     ]
     return "\n".join(lines)

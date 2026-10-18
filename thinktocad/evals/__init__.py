@@ -6,14 +6,14 @@ from .harness import SuiteResult, Task, TaskResult, run_suite, run_task
 from .simulator import ToolSimulator
 
 __all__ = [
+    "SuiteResult",
     "Task",
     "TaskResult",
-    "SuiteResult",
-    "run_task",
-    "run_suite",
     "ToolSimulator",
     "all_succeeded",
-    "tool_ok",
     "data_at",
     "error_code",
+    "run_suite",
+    "run_task",
+    "tool_ok",
 ]

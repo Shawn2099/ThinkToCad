@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from thinktocad import paths
-from thinktocad.tools import contracts, knowledge, verification  # noqa: F401
+from thinktocad.tools import contracts, knowledge, verification
 from thinktocad.tools.registry import REGISTRY
 
 DOMAIN_TOOLS = {

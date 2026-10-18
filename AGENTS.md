@@ -43,9 +43,10 @@ not necessarily implemented — check the code before relying on it.
 
 - The full domain tool layer (`thinktocad/tools/`) — canonical registry, structured
   envelopes, the execution pipeline (policy, guardrails, retry, circuit breaker, spans),
-  and tools: `list_mechanisms`, `retrieve_knowledge`, `get_contract`, `check_contract`,
-  `dfm_check`, `check_gate`, `build_visual_check`, `record_visual_check`, `save_attempt`,
-  `save_lesson`.
+  and tools: `list_mechanisms`, `retrieve_knowledge`, `recall`, `get_contract`,
+  `check_contract`, `dfm_check`, `check_gate`, `get_manufacturing_profile`,
+  `save_manufacturing_profile`, `build_visual_check`, `record_visual_check`,
+  `save_attempt`, `save_lesson`.
 - The design flow + gates (`thinktocad/flow.py`); the ReAct loop
   (`thinktocad/runtime/loop.py`, model injected); visual-check tools
   (`thinktocad/tools/visual.py`); the eval harness + tool simulator (`thinktocad/evals/`).

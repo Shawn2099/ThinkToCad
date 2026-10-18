@@ -4,10 +4,12 @@ Copies SKILLS.md + skills/ + knowledge/ into the user's skills directory
 (default: ~/.claude/skills/thinktocad) so the agent loads it automatically.
 """
 from __future__ import annotations
+
 import argparse
 import os
 import shutil
 from pathlib import Path
+
 
 def _find_root() -> Path:
     # Walk up from this file until we find the directory containing SKILLS.md

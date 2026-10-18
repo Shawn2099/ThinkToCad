@@ -1,7 +1,8 @@
 """Reusable deterministic graders for eval tasks (guide section 11)."""
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 Grader = Callable[[list[dict]], dict]
 

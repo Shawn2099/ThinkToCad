@@ -15,10 +15,11 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 from .errors import ErrorCode, ToolError
 from .guardrails import EMPTY, GuardrailPipeline, Tripwire

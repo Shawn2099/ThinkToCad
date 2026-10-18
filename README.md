@@ -76,8 +76,9 @@ policy -> cancellation -> input guardrails -> span
   "retryable": false, "suggested_fix": "...", "details": {}}}
 ```
 
-Domain tools: `list_mechanisms`, `retrieve_knowledge`, `get_contract`, `check_contract`,
-`dfm_check`, `check_gate`, `build_visual_check`, `record_visual_check`, `save_attempt`,
+Domain tools: `list_mechanisms`, `retrieve_knowledge`, `recall`, `get_contract`,
+`check_contract`, `dfm_check`, `check_gate`, `get_manufacturing_profile`,
+`save_manufacturing_profile`, `build_visual_check`, `record_visual_check`, `save_attempt`,
 `save_lesson`.
 
 ### MCP surface

@@ -7,9 +7,10 @@ may contain paths or secrets); only names, ids, durations and error types are.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Iterator, Protocol
+from typing import Any, Protocol
 
 
 @dataclass
@@ -50,7 +51,7 @@ class RecordingTracer:
         span = Span(name=name, attributes=dict(attributes or {}))
         try:
             yield span
-        except Exception as exc:  # noqa: BLE001 - record, then re-raise
+        except Exception as exc:
             span.error = type(exc).__name__
             raise
         finally:

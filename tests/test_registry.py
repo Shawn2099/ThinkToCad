@@ -26,7 +26,7 @@ def test_err_envelope_shape():
 
 
 def test_schema_from_signature():
-    def fn(a: str, b: int = 3, c: float | None = None) -> dict:  # noqa: ARG001
+    def fn(a: str, b: int = 3, c: float | None = None) -> dict:
         return {}
 
     schema = schema_from_signature(fn)

@@ -37,8 +37,9 @@ def test_tools_resources_and_prompts_are_exposed():
             )
 
     tools, templates, prompts = _run(go())
-    assert len(tools) == 10 and "check_gate" in tools
+    assert len(tools) == 13 and "check_gate" in tools
     assert "build_visual_check" in tools and "record_visual_check" in tools
+    assert "recall" in tools and "save_manufacturing_profile" in tools
     assert any("mechanisms" in uri for uri in templates)
     assert {"design_flow", "design_stage", "dfm_rules"} <= set(prompts)
 

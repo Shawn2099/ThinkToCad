@@ -16,7 +16,7 @@ contract and the registered tool names (there is no built-in model).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import yaml
 
@@ -25,7 +25,7 @@ from ..tools.execution import ExecutionContext
 from ..tools.registry import REGISTRY
 from .loop import AgentLoop, Budget, ModelFn, RunResult, Turn
 
-__all__ = ["Contract", "load_contract", "retrieve_knowledge", "design", "AgentLoop", "Turn"]
+__all__ = ["AgentLoop", "Contract", "Turn", "design", "load_contract", "retrieve_knowledge"]
 
 
 @dataclass

@@ -56,12 +56,12 @@ class ToolPolicy:
         return self.default
 
     @classmethod
-    def permissive(cls) -> "ToolPolicy":
+    def permissive(cls) -> ToolPolicy:
         """Allow everything (default for a trusted, local toolkit)."""
         return cls()
 
     @classmethod
-    def strict(cls) -> "ToolPolicy":
+    def strict(cls) -> ToolPolicy:
         """Deny code execution, ask before writes, default to asking."""
         return cls(
             deny=[

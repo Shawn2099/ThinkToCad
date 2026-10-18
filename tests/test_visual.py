@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from thinktocad import paths
-from thinktocad.tools import visual  # noqa: F401  (registers tools)
+from thinktocad.tools import visual
 
 
 def test_build_visual_check_payload_is_advisory():

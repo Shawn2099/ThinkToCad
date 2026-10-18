@@ -54,8 +54,33 @@ def dfm_rules_for(process: str) -> dict[str, float] | None:
     return _DFM_RULES.get(process.strip().lower())
 
 
+# --- manufacturing profile (the shop the user actually has) ----------------- #
+_PROFILE_NAME = "manufacturing_profile.yaml"
+
+
+def _profile_path():
+    return paths.ROOT / _PROFILE_NAME
+
+
+def _read_profile() -> dict | None:
+    path = _profile_path()
+    if not path.exists():
+        return None
+    try:
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except yaml.YAMLError:
+        return None
+
+
+def _profile_primary_process() -> str | None:
+    processes = (_read_profile() or {}).get("processes") or []
+    return processes[0] if processes else None
+
+
 @safe_tool(side_effect="read", timeout_s=10)
-def dfm_check(process: str, features: dict, stock: dict | None = None) -> dict:
+def dfm_check(
+    process: str | None = None, features: dict | None = None, stock: dict | None = None
+) -> dict:
     """Check proposed dimensions against manufacturing (DFM) rules for a process.
 
     Use during Specify and Build to enforce "design for manufacturing" for the shop the
@@ -63,12 +88,21 @@ def dfm_check(process: str, features: dict, stock: dict | None = None) -> dict:
     with one issue per violated metric. Side effect: read-only.
 
     Args:
-        process: one of fdm, sla, sheet_metal, cast, machining, hand_tools.
+        process: one of fdm, sla, sheet_metal, cast, machining, hand_tools. If omitted,
+            the primary process from the saved manufacturing profile is used.
         features: metric -> value in mm, e.g. {"wall_mm": 2.0,
             "corner_radius_mm": 1.0, "hole_dia_mm": 3.0, "hole_edge_mm": 5.0}.
         stock: optional preferred stock sizes, e.g. {"thickness_mm": [1, 2, 3]}; if
             given, thickness features not matching a stock size are flagged.
     """
+    if process is None:
+        process = _profile_primary_process()
+    if process is None:
+        raise ToolError(
+            ErrorCode.INVALID_ARGUMENT,
+            "no process given and no manufacturing profile saved",
+            suggested_fix="pass a process, or call save_manufacturing_profile first",
+        )
     rules = _DFM_RULES.get(process)
     if rules is None:
         raise ToolError(
@@ -264,3 +298,61 @@ def save_lesson(
     )
     path.write_text(content, encoding="utf-8")
     return {"path": str(path), "slug": slug, "trust": trust}
+
+
+@safe_tool(side_effect="read", timeout_s=10)
+def get_manufacturing_profile() -> dict:
+    """Read the saved manufacturing profile - the shop the user actually has.
+
+    Returns {"profile": {...} | null, "path": str}. Capture it once during ideation with
+    save_manufacturing_profile so the DFM gate and the agent reflect the real tools,
+    materials and tolerances. Side effect: read-only.
+    """
+    return {"profile": _read_profile(), "path": str(_profile_path())}
+
+
+@safe_tool(side_effect="write", timeout_s=10)
+def save_manufacturing_profile(
+    processes: list[str],
+    materials: list[str] | None = None,
+    tolerances: dict | None = None,
+    batch_size: str | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Save the manufacturing profile captured at ideation.
+
+    Records the processes the user actually has (fdm, sheet_metal, hand_tools, ...),
+    available materials, achievable tolerances and batch size. The DFM gate reads this,
+    so designs match the real shop. Side effect: write.
+
+    Args:
+        processes: available processes, e.g. ["hand_tools", "sheet_metal"].
+        materials: available materials / stock, e.g. ["mild steel", "aluminium 6061"].
+        tolerances: achievable tolerances, e.g. {"general_mm": 0.5, "machined_mm": 0.1}.
+        batch_size: "one-off", "small", or "production".
+        notes: free text - suppliers, constraints, tooling.
+    """
+    if not processes:
+        raise ToolError(
+            ErrorCode.INVALID_ARGUMENT,
+            "at least one process is required",
+            suggested_fix=f"use ids from: {', '.join(sorted(_DFM_RULES))}",
+        )
+    unknown = [name for name in processes if name not in _DFM_RULES]
+    if unknown:
+        raise ToolError(
+            ErrorCode.INVALID_ARGUMENT,
+            f"unknown process(es): {unknown}",
+            suggested_fix=f"use ids from: {', '.join(sorted(_DFM_RULES))}",
+        )
+    profile = {
+        "processes": list(processes),
+        "materials": list(materials or []),
+        "tolerances": dict(tolerances or {}),
+        "batch_size": batch_size,
+        "notes": notes,
+        "saved": _dt.datetime.now().isoformat(timespec="seconds"),
+    }
+    path = _profile_path()
+    path.write_text(yaml.safe_dump(profile, sort_keys=False), encoding="utf-8")
+    return {"path": str(path), "profile": profile}

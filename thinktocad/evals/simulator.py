@@ -6,7 +6,8 @@ the real one.
 """
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from ..tools.registry import ToolRegistry, safe_tool
 
@@ -20,7 +21,7 @@ class ToolSimulator:
         self.calls: list[dict] = []
         self.state: dict[str, Any] = {}
 
-    def script(self, name: str, fn: Script, *, side_effect: str = "read") -> "ToolSimulator":
+    def script(self, name: str, fn: Script, *, side_effect: str = "read") -> ToolSimulator:
         self.scripts[name] = fn
         self._side_effects = getattr(self, "_side_effects", {})
         self._side_effects[name] = side_effect

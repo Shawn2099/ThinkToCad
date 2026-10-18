@@ -21,8 +21,9 @@ import functools
 import inspect
 import types
 import typing
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 
 from . import execution
 from .errors import ErrorCode, ToolError
@@ -79,7 +80,7 @@ def schema_from_signature(fn: Callable[..., Any]) -> dict[str, Any]:
     """Build a JSON Schema (draft 2020-12 subset) from a function signature."""
     try:
         hints = typing.get_type_hints(fn)
-    except Exception:  # unresolvable forward refs -> fall back to no annotations
+    except Exception:  # noqa: BLE001 - unresolvable forward refs; fall back to no annotations
         hints = {}
     props: dict[str, Any] = {}
     required: list[str] = []

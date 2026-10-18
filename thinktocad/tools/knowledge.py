@@ -1,13 +1,16 @@
-"""Knowledge-base tools: list and retrieve mechanisms / constraints / lessons.
+"""Knowledge-base tools: list, retrieve, and recall mechanisms / constraints / lessons.
 
 Read-only. The knowledge base is the differentiator of ThinkToCad
-(``reports/Agentic CAD tooling landscape.md``); these tools expose it as structured
-data instead of prose RAG.
+(``reports/Agentic CAD tooling landscape.md``); these tools expose it as structured data
+instead of prose RAG, and ``recall`` closes the learning loop by reading past attempts
+and lessons back.
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
+
+import yaml
 
 from .. import paths
 from .registry import safe_tool
@@ -115,5 +118,67 @@ def retrieve_knowledge(
                 result["lessons"].append(
                     {"id": path.stem, "text": _clip(_read(path), response_format)}
                 )
+
+    return result
+
+
+@safe_tool(side_effect="read", timeout_s=20)
+def recall(
+    design: str | None = None,
+    query: str | None = None,
+    include_attempts: bool = True,
+    include_lessons: bool = True,
+    limit: int = 20,
+    response_format: str = "concise",
+) -> dict:
+    """Recall what past designs tried — attempts and lessons — before starting again.
+
+    Closes the learning loop: read memory so a failed approach is not repeated. Returns
+    the attempt records for a design and/or lessons whose text matches `query`. Call this
+    at the start of Research/Specify. Side effect: read-only.
+
+    Args:
+        design: design name; returns memory/designs/<design>/attempt_*.yaml.
+        query: case-insensitive substring matched against lesson text (and, when no
+            design is given, against design directory names).
+        include_attempts: include attempt records.
+        include_lessons: include lessons.
+        limit: maximum attempts and lessons returned.
+        response_format: "concise" (truncate long lessons) or "detailed".
+    """
+    result: dict = {"design": design, "attempts": [], "lessons": [], "designs": []}
+    designs_dir = paths.MEMORY / "designs"
+
+    if design and include_attempts and (designs_dir / design).is_dir():
+        files = sorted((designs_dir / design).glob("attempt_*.yaml"))
+        for path in files[-limit:]:
+            try:
+                result["attempts"].append(
+                    {"file": path.name, "record": yaml.safe_load(_read(path)) or {}}
+                )
+            except yaml.YAMLError:
+                result["attempts"].append({"file": path.name, "record": None})
+
+    if query and not design and designs_dir.is_dir():
+        needle = query.lower()
+        result["designs"] = sorted(
+            p.name for p in designs_dir.iterdir() if p.is_dir() and needle in p.name.lower()
+        )[:limit]
+
+    if include_lessons:
+        lessons_dir = paths.KNOWLEDGE / "lessons"
+        if lessons_dir.is_dir():
+            needle = (query or "").lower()
+            for path in sorted(lessons_dir.glob("*.md")):
+                if path.stem.lower() == "readme":
+                    continue
+                text = _read(path)
+                if needle and needle not in text.lower() and needle not in path.stem.lower():
+                    continue
+                result["lessons"].append(
+                    {"id": path.stem, "text": _clip(text, response_format)}
+                )
+                if len(result["lessons"]) >= limit:
+                    break
 
     return result

@@ -53,9 +53,12 @@ def scan_code(code: str) -> list[str]:
             func = node.func
             if isinstance(func, ast.Name) and func.id in DENIED_CALLS:
                 findings.add(f"call to {func.id}()")
-            elif isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name):
-                if (func.value.id, func.attr) in DENIED_ATTR_CALLS:
-                    findings.add(f"call to {func.value.id}.{func.attr}()")
+            elif (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and (func.value.id, func.attr) in DENIED_ATTR_CALLS
+            ):
+                findings.add(f"call to {func.value.id}.{func.attr}()")
         elif isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name.split(".")[0] in DENIED_IMPORTS:

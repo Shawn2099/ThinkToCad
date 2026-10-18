@@ -1,12 +1,11 @@
 """Tests for provider adapters and result formatting (guide sections 3, 7, 12)."""
 from __future__ import annotations
 
+# ensure domain tools are registered
+from thinktocad.tools import contracts, knowledge, verification  # noqa: F401
 from thinktocad.tools.adapters import export, strictify, to_anthropic, to_gemini, to_mcp, to_openai
 from thinktocad.tools.formatting import artifact, paginate, truncate_text
 from thinktocad.tools.registry import REGISTRY
-
-# ensure domain tools are registered
-from thinktocad.tools import contracts, knowledge, verification  # noqa: F401
 
 
 def test_strictify_makes_all_required_and_nullable():
