@@ -1,0 +1,15 @@
+design: height_lock
+attempt: 1
+status: passed
+mechanism: slotted_bracket
+verification:
+  min_clearance_mm: 1
+  interference_vol_mm3: 0
+  bracket_vol_mm3: 10680
+  pin_vol_mm3: 2356.19
+  gates:
+    G2: true
+credibility: null
+visual: null
+notes: E2E test 2; distToShape gives exactly 1.0mm clearance
+timestamp: '2026-10-19T04:40:09'

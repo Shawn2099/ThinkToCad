@@ -1,0 +1,18 @@
+name: cut_height_adjust
+function: Adjust cutter height from 25mm to 60mm without moving the motor
+constraints:
+  motor_rise_mm: 0
+  deck_clearance_mm: 1.0
+  sleeve_length_mm: 20
+  sleeve_id_mm: 17
+  sleeve_od_mm: 25
+  mass_budget_kg: 0.5
+mechanisms:
+  - spacer_sleeve
+validation:
+  - type: mass
+    tool: freecad
+    max_kg: 0.5
+  - type: clearance
+    tool: freecad
+    min_mm: 1.0

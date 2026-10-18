@@ -1,0 +1,17 @@
+design: shaft_drive
+attempt: 1
+status: passed
+mechanism: shaft
+verification:
+  sag_mm: 0.029349
+  critical_rpm: 5520.91
+  volume_mm3: 343611.7
+  mass_steel_kg: 2.6974
+  gates:
+    G2: true
+    G3: true
+credibility: null
+visual: null
+notes: E2E test 3; MATLAB sag + critical speed gate; build123d and FreeCAD volumes
+  match
+timestamp: '2026-10-19T04:42:00'

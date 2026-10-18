@@ -1,0 +1,20 @@
+name: height_lock
+function: Lock the cutter at a chosen height via a slotted bracket and cross pin
+constraints:
+  bracket_length_mm: 60
+  bracket_width_mm: 40
+  bracket_thickness_mm: 5
+  slot_length_mm: 22
+  slot_width_mm: 12
+  pin_dia_mm: 10
+  min_clearance_mm: 1.0
+  max_interference_mm: 0.0
+mechanisms:
+  - slotted_bracket
+validation:
+  - type: clearance
+    tool: freecad
+    min_mm: 1.0
+  - type: interference
+    tool: freecad
+    max_mm: 0.0

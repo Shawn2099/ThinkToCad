@@ -1,0 +1,18 @@
+design: cut_height_adjust
+attempt: 1
+status: passed
+mechanism: spacer_sleeve
+verification:
+  mass_steel_kg: 0.04143
+  volume_mm3: 5277.88
+  dims_mm:
+  - 25
+  - 25
+  - 20
+  gates:
+    G1: true
+    G2: true
+credibility: null
+visual: null
+notes: E2E test 1; build123d and FreeCAD volumes match exactly
+timestamp: '2026-10-19T04:38:57'

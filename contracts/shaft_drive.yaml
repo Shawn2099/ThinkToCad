@@ -1,0 +1,19 @@
+name: shaft_drive
+function: Transmit drive torque to the cutter drum via a simply supported EN8 shaft
+constraints:
+  shaft_dia_mm: 25
+  span_mm: 700
+  material: EN8
+  max_sag_mm: 0.05
+  min_critical_rpm: 3000
+mechanisms:
+  - shaft
+validation:
+  - type: sag
+    tool: matlab
+    max_mm: 0.05
+  - type: critical_speed
+    tool: matlab
+    min_rpm: 3000
+  - type: mass
+    tool: freecad
