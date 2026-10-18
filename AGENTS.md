@@ -7,8 +7,9 @@ not necessarily implemented — check the code before relying on it.
 
 ## Repo shape (the layout block in `README.md` is aspirational and misleading)
 
-- `thinktocad/` is **only** the installable Python package: `runtime/design_agent.py`,
-  `mcp/*_server.py`, `scripts/install_skill.py`, `tools/` (README only, no code).
+- `thinktocad/` is the installable Python package: `flow.py` (stages + gates),
+  `tools/` (registry, execution pipeline, domain tools), `runtime/` (ReAct loop,
+  visual checks, `design_agent`), `mcp/server.py`, `evals/`, `scripts/`.
 - Content lives at the repo root, **not** under `thinktocad/`: `knowledge/`,
   `contracts/`, `skills/`, `specs/`, `memory/`, `research_notes/`, `reports/`.
 - Root guides: `WORKFLOW.md` (end-to-end process), `SKILLS.md` (agent skill),
@@ -24,28 +25,30 @@ not necessarily implemented — check the code before relying on it.
 - `pip install -e .` — core deps (pyyaml, fastmcp)
 - `pip install -e .[cad]` — adds build123d + cadquery
 - `pip install -e .[dev]` — adds pytest + ruff (tests live in `tests/`)
-- `python -m thinktocad.runtime.design_agent <contract_name>` — loads
-  `contracts/<name>.yaml`; the loop needs a `step_fn` that is not wired up yet.
+- `python -m thinktocad.runtime.design_agent <contract_name>` — prints the contract and
+  the registered tools. The loop takes an injected model: `design(name, model_fn)`.
 - `thinktocad-install-skill` — copies root `SKILLS.md` + `skills/` + `knowledge/` +
   `contracts/` into `~/.claude/skills/thinktocad`.
-- `thinktocad-mcp` — the product MCP server (knowledge / contracts / DFM gate / memory),
-  also `python -m thinktocad.mcp.server`. Exposes the **domain layer only**.
-- Legacy per-backend modules `thinktocad.mcp.build123d_server` / `freecad_server` /
-  `matlab_server` exist but are **not** the product surface — geometry/verify/sim come
-  from the external `build123d-mcp` / `freecad-mcp` / `matlab-mcp` servers (pzfreo,
-  neka-nat, MathWorks). Declaring those names here would shadow those installs.
+- `thinktocad-mcp` — the product MCP server (knowledge / contracts / DFM gate / flow
+  gates / memory), also `python -m thinktocad.mcp.server`. Exposes the **domain layer
+  only** — geometry/verify/sim come from the external `build123d-mcp` / `freecad-mcp` /
+  `matlab-mcp` servers (pzfreo, neka-nat, MathWorks).
+- `thinktocad-init --client opencode|vscode|claude|cursor` — writes/merges the MCP config.
+- `python -m thinktocad.evals.tasks` — the deterministic domain eval suite (CI gates on it).
 - Windows (this environment): the README's `&` background syntax is Unix-only —
   drop it or use `Start-Process`.
 
-## What actually works vs. what is stubbed
+## What works
 
-- Works: the domain tool layer in `thinktocad/tools/` (canonical registry + structured
-  envelopes + knowledge / contracts / DFM gate / memory), served by `thinktocad-mcp`;
-  `build123d_server.create_part` and `validate_code`.
-- Stubs: every tool in `freecad_server.py` and `matlab_server.py` returns
-  `{"ok": False, "error": "... not implemented"}`; `design_agent._tool_validate`
-  and `_tool_simulate` are TODOs.
-- Tests live in `tests/` (`pytest -q`). No CI or lint config yet.
+- The full domain tool layer (`thinktocad/tools/`) — canonical registry, structured
+  envelopes, the execution pipeline (policy, guardrails, retry, circuit breaker, spans),
+  and tools: `list_mechanisms`, `retrieve_knowledge`, `get_contract`, `check_contract`,
+  `dfm_check`, `check_gate`, `save_attempt`, `save_lesson`.
+- The design flow + gates (`thinktocad/flow.py`); the ReAct loop
+  (`thinktocad/runtime/loop.py`, model injected); visual-check helpers
+  (`thinktocad/runtime/visual.py`); the eval harness + tool simulator (`thinktocad/evals/`).
+- Geometry/verify/sim are **not** implemented here — use the external MCP servers.
+- Tests: `tests/` (`pytest -q`); CI in `.github/workflows/ci.yml`; lint config `[tool.ruff]`.
 
 ## Invariants (the "kernel is the referee" contract)
 

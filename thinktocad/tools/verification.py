@@ -1,8 +1,9 @@
-"""DFM gate, design memory, and trust-tiered lesson write-back.
+"""DFM gate, design-flow gates, design memory, and trust-tiered lesson write-back.
 
-* ``dfm_check``    - process-aware manufacturability gate (read).
-* ``save_attempt`` - append-only design memory (write).
-* ``save_lesson``  - knowledge write-back guarded by trust tiers T1-T4 (write).
+* ``dfm_check``     - process-aware manufacturability gate (read).
+* ``check_gate``    - evaluate a design-flow gate G1-G4 (read).
+* ``save_attempt``  - append-only design memory with credibility + visual record (write).
+* ``save_lesson``   - knowledge write-back guarded by trust tiers T1-T4 (write).
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ import re
 
 import yaml
 
-from .. import paths
+from .. import flow, paths
 from .errors import ErrorCode, ToolError
 from .registry import safe_tool
 
@@ -107,6 +108,54 @@ def dfm_check(process: str, features: dict, stock: dict | None = None) -> dict:
     return {"process": process, "passed": not issues, "issues": issues}
 
 
+@safe_tool(side_effect="read", timeout_s=10)
+def check_gate(gate: str, inputs: dict) -> dict:
+    """Evaluate a design-flow gate (G1-G4) and return its verdict.
+
+    Gates: G1 confidence (subscores -> mean >= 0.80), G2 verification (all checks pass,
+    deterministic, credibility tier recorded), G3 publish (extremes + specs + determinism),
+    G4 human (approval). Call before advancing a stage; a stage cannot be left until its
+    gate passes. Returns {"gate", "passed", "score", "reasons"}. Side effect: read-only.
+
+    Args:
+        gate: "G1", "G2", "G3", or "G4".
+        inputs: gate-specific inputs. G1: {"subscores": {mechanism_fit, ...}}. G2:
+            {"checks": [{"name","pass"}], "deterministic": bool, "credibility": str}.
+            G3: {"extremes_ok": bool, "specs_green": bool, "deterministic": bool}.
+            G4: {"approved": bool}.
+    """
+    key = gate.upper()
+    if key not in flow.GATES:
+        raise ToolError(
+            ErrorCode.INVALID_ARGUMENT,
+            f"unknown gate: {gate}",
+            suggested_fix="use G1, G2, G3, or G4",
+        )
+    inputs = inputs or {}
+    try:
+        if key == "G1":
+            return flow.confidence_gate(inputs.get("subscores", {}))
+        if key == "G2":
+            return flow.verification_gate(
+                inputs.get("checks", []),
+                bool(inputs.get("deterministic")),
+                inputs.get("credibility"),
+            )
+        if key == "G3":
+            return flow.publish_gate(
+                bool(inputs.get("extremes_ok")),
+                bool(inputs.get("specs_green")),
+                bool(inputs.get("deterministic")),
+            )
+        return flow.human_gate(bool(inputs.get("approved")))
+    except TypeError as exc:
+        raise ToolError(
+            ErrorCode.INVALID_ARGUMENT,
+            f"bad inputs for {key}: {exc}",
+            suggested_fix="see the tool description for the required inputs",
+        ) from None
+
+
 @safe_tool(side_effect="write", timeout_s=10)
 def save_attempt(
     design: str,
@@ -114,12 +163,13 @@ def save_attempt(
     mechanism: str | None = None,
     verification: dict | None = None,
     notes: str | None = None,
+    credibility: str | None = None,
+    visual: dict | None = None,
 ) -> dict:
     """Append a design attempt record to memory/designs/<design>/attempt_N.yaml.
 
-    Call after every build/validate cycle, pass or fail — failed attempts are as
-    valuable as successes. The write is append-only and never overwrites. Side effect:
-    write.
+    Call after every build/validate cycle, pass or fail — failed attempts are as valuable
+    as successes. The write is append-only and never overwrites. Side effect: write.
 
     Args:
         design: design name (matches the contract name).
@@ -127,6 +177,9 @@ def save_attempt(
         mechanism: mechanism id that was tried.
         verification: verification summary (interference, clearance, mass, gates...).
         notes: free text — root cause or fix applied.
+        credibility: ordered tier — critique_finding | surrogate_prediction |
+            proxy_assembly_result | executed_solver_result.
+        visual: the vision-model verdict record (see runtime.visual.record_verdict).
     """
     if status not in ("passed", "failed", "partial"):
         raise ToolError(
@@ -143,6 +196,8 @@ def save_attempt(
         "status": status,
         "mechanism": mechanism,
         "verification": verification or {},
+        "credibility": credibility,
+        "visual": visual,
         "notes": notes,
         "timestamp": _dt.datetime.now().isoformat(timespec="seconds"),
     }
@@ -162,8 +217,8 @@ def save_lesson(
     """Write a lesson or insight to knowledge/lessons/ with a trust tier (T1-T4).
 
     Tiers: T1 verified by tool, T2 cited standard/textbook, T3 heuristic, T4
-    LLM-inferred. Never silently overwrites a higher-trust entry with a lower-trust
-    one: if an existing lesson has an equal-or-higher tier, the write is refused unless
+    LLM-inferred. Never silently overwrites a higher-trust entry with a lower-trust one:
+    if an existing lesson has an equal-or-higher tier, the write is refused unless
     override is true. Side effect: write.
 
     Args:
