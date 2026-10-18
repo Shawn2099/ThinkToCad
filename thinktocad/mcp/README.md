@@ -1,22 +1,30 @@
-# MCP servers for ThinkToCad
+# ThinkToCad MCP server
 
-One FastMCP server per backend. Run with `python mcp/<name>_server.py`.
+`thinktocad-mcp` is the **domain layer** of ThinkToCad: knowledge, contracts, DFM,
+flow gates, visual check, and design memory. It is the only in-repo MCP server.
 
-## Servers
+Geometry, verification and simulation are **external MCP servers**, kept separate so
+the tool surfaces do not overlap:
 
-- `build123d_server.py` — create geometry from Python code; returns step/stl paths + validity.
-- `freecad_server.py` — verify geometry: mass, CG, interference, clearance, render preview.
-- `matlab_server.py` — run sim scripts, return PASS/FAIL gates and numbers.
+| Server | Responsibility |
+|--------|----------------|
+| `build123d-mcp` | Create geometry from Python code (subprocess); returns step/stl paths + validity. |
+| `freecad-mcp` | Verify geometry: mass, CG, interference, clearance, watertight, render preview. |
+| `matlab-mcp` / `matlab -batch` | Run simulation scripts; return PASS/FAIL gates and numbers. |
 
-## Tool contract (all servers)
+Run the domain server with the `thinktocad-mcp` console script or
+`python -m thinktocad.mcp.server`.
 
-Each tool returns a structured dict:
+## Tool contract
+
+Every tool returns a structured envelope and never raises into the agent loop:
+
 ```
-{"ok": bool, "data": {...}, "error": str | None, "artifacts": [paths]}
+{"ok": bool, "data": {...}, "error": {"code", "message", "retryable", "suggested_fix"}}
 ```
-Never raise into the agent loop; return ok=False with a readable error.
+
+See `thinktocad/tools/errors.py` for the error taxonomy.
 
 ## Status
 
-Skeleton only. Implement with `fastmcp` (pip install fastmcp).
-See https://gofastmcp.com for the FastMCP API.
+Fully implemented (13 tools). 87 tests, CI, ruff, eval harness.

@@ -48,7 +48,7 @@ thinktocad/            # the installable Python package (the MCP server + tools)
 ├── paths.py           # repo-root discovery
 ├── tools/             # canonical tool contract + domain tools  (see tools/README.md)
 ├── mcp/server.py      # the `thinktocad-mcp` server
-└── runtime/           # design_agent.py loop (skeleton)
+└── runtime/           # design_agent.py loop (provider-agnostic runtime)
 knowledge/             # engineering brain: mechanisms, constraints, lessons, graph.yaml
 contracts/             # per-design contracts (YAML) — copy _template.yaml
 memory/                # per-design attempt history

@@ -473,8 +473,9 @@ deliverables:
 }
 ```
 
-Rule: `_tool_validate` must return this JSON, never a string. On repeated
-failure of the same check, instruct the Refiner to change construction strategy.
+Rule: the verification gate (`check_gate` + the external FreeCAD/MATLAB backends) must
+return this JSON, never a string. On repeated failure of the same check, instruct the
+Refiner to change construction strategy.
 
 ### Memory attempt schema (`memory/designs/<name>/attempt_N.yaml`)
 

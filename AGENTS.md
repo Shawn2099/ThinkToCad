@@ -2,8 +2,9 @@
 
 ThinkToCad — a knowledge/skill + MCP-server bundle for **knowledge-guided agentic
 mechanical CAD**. The repo is mostly curated engineering knowledge (markdown/YAML)
-plus a thin, partly-stubbed Python skeleton. A capability described in the docs is
-not necessarily implemented — check the code before relying on it.
+plus a fully implemented Python package. Geometry / verification / simulation are
+external MCP servers (`build123d-mcp`, `freecad-mcp`, `matlab-mcp`), not part of
+`thinktocad/`.
 
 ## Repo shape (the layout block in `README.md` is aspirational and misleading)
 

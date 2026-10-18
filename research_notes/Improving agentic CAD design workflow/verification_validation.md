@@ -1,5 +1,12 @@
 # Automated Verification & Validation (V&V) in AI-Assisted CAD Design
 
+> **Note (2026-10-19):** This note was written against an earlier in-repo architecture.
+> The `thinktocad/mcp/freecad_server.py` / `matlab_server.py` stubs and the
+> `check_watertight` / `_tool_validate` tools described below were removed. Verification
+> and simulation are now delivered by the external `freecad-mcp` and `matlab-mcp` servers;
+> ThinkToCad's domain tools (`check_gate`, `dfm_check`, `save_attempt`) orchestrate them.
+> The kernel analysis (OCCT / build123d / FreeCAD) remains accurate.
+
 ## Q1: What automated geometry checks exist (watertight, manifold, self-intersection, degenerate faces)?
 
 ### Takeaway

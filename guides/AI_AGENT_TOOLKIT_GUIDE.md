@@ -702,92 +702,89 @@ How to apply these patterns to the ThinkToCad CAD toolkit (this repo).
 
 ### Current state
 
-- `thinktocad/mcp/build123d_server.py`: works - `create_part` (subprocess execution, artifacts in `output/run_*/`), `validate_code`.
-- `thinktocad/mcp/freecad_server.py` and `matlab_server.py`: stubs - return `{"ok": False, "error": "... not implemented"}`.
-- `thinktocad/runtime/design_agent.py`: ReAct loop with 5 termination conditions; `_tool_validate` and `_tool_simulate` are TODOs; `step_fn` not wired.
-- No tests, CI, or lint config. Not a git repo.
+- `thinktocad/` is an installable package. `thinktocad-mcp` exposes the **domain layer** (13 tools): knowledge (`list_mechanisms`, `retrieve_knowledge`, `recall`), contracts (`get_contract`, `check_contract`), DFM (`dfm_check` + `get`/`save_manufacturing_profile`), flow gates (`check_gate` G1-G4), visual check, and design memory (`save_attempt`, `save_lesson`).
+- Geometry / verification / simulation are **external MCP servers** (`build123d-mcp`, `freecad-mcp`, `matlab-mcp`) by design. The earlier in-repo `build123d_server.py` / `freecad_server.py` / `matlab_server.py` were removed so the tool surfaces don't overlap.
+- `thinktocad/runtime/design_agent.py`: provider-agnostic ReAct runtime; the model is injected (`model_fn(messages, tools, state)`). The host agent (e.g. OpenCode) supplies the model and calls the backends alongside `thinktocad-mcp`.
+- 87 tests, CI (`.github/workflows/ci.yml`), ruff, eval harness (6/6), git repo pushed to origin.
 
 ### Recommended architecture
 
-Adopt the canonical contract from Section 3. Define one `ToolDefinition` dataclass in a shared module (e.g., `thinktocad/tools/registry.py`) and adapt to FastMCP/MCP at the server boundary. All three MCP servers (build123d, freecad, matlab) should expose tools through the same registry.
+Adopt the canonical contract from Section 3. Define one `ToolDefinition` dataclass in a shared module (`thinktocad/tools/registry.py`) and adapt to FastMCP/MCP at the server boundary. The 13 domain tools share one registry; the three geometry/verify/sim backends are separate MCP servers called by the host agent.
 
-Suggested tool set (minimal viable, consolidated):
+Suggested tool set (domain layer, consolidated):
 
 | Tool | Side effect | Purpose |
 |------|-------------|---------|
-| `thinktocad_validate_code` | read | Static compile check (exists as `validate_code`) |
-| `thinktocad_create_part` | exec | Run build123d code in subprocess (exists as `create_part`) |
-| `thinktocad_verify_part` | read (freecad) | Mass, interference, clearance checks (stub -> implement) |
-| `thinktocad_simulate` | read (matlab) | Dynamics/kinematics simulation (stub -> implement) |
-| `thinktocad_retrieve_knowledge` | read | Fetch mechanism/constraint/lesson files |
-| `thinktocad_save_attempt` | write | Persist attempt_N.yaml |
+| `list_mechanisms` / `retrieve_knowledge` / `recall` | read | Knowledge base + memory retrieval |
+| `get_contract` / `check_contract` | read | Contract load + schema validation |
+| `dfm_check` | read (profile) | Manufacturability gate against the user's shop |
+| `check_gate` | read | Flow gates G1-G4 |
+| `save_attempt` / `save_lesson` | write | Design memory + trust-tiered write-back |
 
-Consolidate micro-operations. Use `action` params where natural (e.g., `verify_part(checks=["mass","interference","clearance"])`).
+External (not in thinktocad):
+
+| Tool | Side effect | Purpose |
+|------|-------------|---------|
+| build123d `create_part` | exec | Run build123d code in subprocess |
+| freecad `execute_code` | read (freecad) | Mass, interference (`common`), clearance (`distToShape`), validity |
+| matlab `run_matlab_file` | read (matlab) | Dynamics, sag, critical-speed simulation |
+
+Consolidate micro-operations. Use `action` params where natural.
 
 ### Apply the invariants
 
-- `_execute_tool` in `design_agent.py` already never raises - keep it that way. Wrap every new tool the same way.
-- Return structured envelopes: `{"ok": bool, "data": ..., "error": {code, message, retryable, suggested_fix}}`. The build123d server currently returns `{ok, stdout, stderr, artifacts, workdir, error}` - normalize to the envelope (put stdout/stderr/artifacts under `data`).
-- Units: mm internally, params snake_case with suffix. `create_part` takes `code` (string) - the code itself must use mm; document this in the tool description.
-- One source of truth: contract YAML -> spec -> code. The design agent loads `contracts/<name>.yaml`; geometry dimensions must come from the contract, not be hard-coded in generated code.
+- Every tool returns a structured envelope and never raises into the loop (enforced by `@safe_tool`).
+- Units: mm internally, params snake_case with a unit suffix (`length_mm`, `mass_kg`).
+- One source of truth: contract YAML -> spec -> code. The design agent loads `contracts/<name>.yaml`; geometry dimensions come from the contract, never hard-coded in generated code.
 
-### Implement the stubs
+### Backend tools (resolved externally)
 
-1. `freecad_server.py`: implement `verify_part` (mass, interference, clearance) as subprocess or FreeCAD RPC. Return structured envelope. Handle timeout (120s). Never raise.
-2. `matlab_server.py`: implement `simulate` similarly.
-3. `design_agent._tool_validate`: call freecad MCP (or in-process). `_tool_simulate`: call matlab MCP.
+The in-repo stubs were removed; verification and simulation are delivered by the external MCP servers:
+
+1. `freecad-mcp` `execute_code` runs FreeCAD Python (mass properties, `distToShape` clearance, `common` interference, `isValid`).
+2. `matlab-mcp` / `matlab -batch` runs dynamics and simulation scripts.
+3. The host agent calls these alongside `thinktocad-mcp`; `design_agent` injects the model and runs the loop.
 
 ### Concurrency and timeouts
 
-- `create_part` runs in subprocess with timeout (already). Add per-tool timeout to registry metadata.
-- Read-only tools (`validate_code`, `retrieve_knowledge`) can run in parallel; `create_part`/`verify_part`/`simulate` are exec/stateful - sequential.
-- Preserve call order in outputs; isolate sibling failures (already in `_execute_tool` loop, but make explicit).
+- Domain tools are read-only and run in parallel; `save_*` and backend calls are exec/stateful - sequential.
+- Per-tool timeouts live in registry metadata; the pipeline (policy -> guardrails -> retry -> timeout -> span -> envelope) enforces them.
 
 ### Error handling
 
 - Normalize all errors to the envelope. Build123d subprocess failures: put stderr + suggested fix ("check imports; ensure export_step called") in `error.suggested_fix`.
 - Timeout: `{"ok": false, "error": {"code": "TIMEOUT", "message": "timeout (120s)", "retryable": true, "suggested_fix": "simplify geometry or increase timeout"}}`.
-- Freecad/matlab stubs currently return `{"ok": False, "error": "... not implemented"}` - replace with real impls or keep as structured "NOT_IMPLEMENTED" errors until done.
+- Backend down: return `{"ok": false, "error": {"code": "BACKEND_UNAVAILABLE", "retryable": true}}` - the model backs off and retries.
 
 ### Knowledge write-back (trust tiers T1-T4)
 
-- `save_memory` writes `memory/designs/<name>/attempt_N.yaml`. Add trust tier field. Never silently overwrite a higher-trust entry with a lower-trust one. Implement a check: if existing entry has tier >= new tier, skip or require explicit override.
+- `save_attempt` writes `memory/designs/<name>/attempt_N.yaml`; `save_lesson` writes `knowledge/lessons/` with a trust tier (T1-T4). Never silently overwrites a higher-trust entry with a lower-trust one (refuses unless `override=true`).
 
 ### Observability
 
-- Add OTel spans per tool call: `thinktocad.tool.<name>` with `gen_ai.tool.name`, `gen_ai.tool.call.id`. Log call count, error count, duration. Keep args/results out of spans by default (they may contain file paths / code).
-- Track circuit-breaker transitions if you add breakers around FreeCAD/MATLAB (external processes).
+- OTel-style spans per tool call (`tools/observability.py`); call/error counts and duration. Args/results kept out of spans by default.
 
 ### Testing
 
-- There are no tests. Add:
-  - Unit tests for `_run_code_sandboxed`, `_tool_build`, `_execute_tool` (mock subprocess).
-  - Unit tests for contract loading, knowledge retrieval.
-  - Integration test for the ReAct loop with a mock `step_fn`.
-  - Eval harness: realistic CAD tasks (e.g., "create a bracket with 4 holes") with graders checking artifact existence + dimensions.
-- Use a tool simulator for multi-turn stateful workflows (geometry depends on prior steps).
+- 87 tests in `tests/` (unit + MCP surface + memory + profile); CI in `.github/workflows/ci.yml`; eval harness in `thinktocad/evals/` (6/6).
 
 ### Security
 
-- `create_part` executes arbitrary Python in a subprocess - already sandboxed by subprocess + timeout + cwd isolation. Add: deny dangerous imports (os.system, subprocess) via AST pre-check in `validate_code` or a pre-execution filter. Consider a restricted Python environment (no network, limited filesystem).
-- Freecad/MATLAB: same subprocess isolation.
-- Path scoping: artifacts only under `output/run_*/`. Validate no path traversal in generated code (static check).
-- Human-in-the-loop: high-risk ops (overwriting a verified part, publishing) require approval. The loop already supports `interrupt` termination - use it.
+- Backend execution is subprocess-isolated with timeout and cwd scoping; static AST screening (`tools/security.py`) denies dangerous calls before execution.
+- Human-in-the-loop: high-risk ops require approval (`APPROVAL_REQUIRED`).
 
 ### Discovery and registration
 
-- FastMCP `@mcp.tool()` is the current registration. Add a central registry dict so tools can be enumerated for deferred loading / tool search later.
-- Names: prefix with `thinktocad_` when exposed alongside other toolkits; keep short names internally.
-- Descriptions: pass the intern test. `create_part` description should state: code must be Python using build123d, must export at least one artifact (step/stl), units are mm, timeout 120s, returns artifact paths.
+- Central registry (`thinktocad/tools/registry.py`) enumerates all tools; FastMCP exposes them at the server boundary. Namespaced by the MCP server name, so no `thinktocad_` prefix is needed.
 
-### Quick wins (apply now)
+### Quick wins (status)
 
-1. Normalize build123d server output to the structured envelope.
-2. Implement `freecad_server.py` verify_part (or a credible stub with structured "NOT_IMPLEMENTED").
-3. Add `thinktocad_` prefix to tool names for namespace safety.
-4. Add OTel spans + per-tool metrics.
-5. Add a test directory with unit tests for the build sandbox.
-6. Document the tool contract in each server's module docstring.
+1. ~~Normalize to the structured envelope~~ - done (all 13 tools).
+2. ~~Implement `freecad_server.py` verify_part~~ - resolved via external `freecad-mcp`.
+3. ~~Namespace tool names~~ - handled by the MCP server name.
+4. ~~Add OTel spans~~ - `tools/observability.py`.
+5. ~~Add a test directory~~ - 87 tests + CI.
+6. ~~Document the tool contract~~ - every module has a docstring.
 
 ---
 
@@ -842,8 +839,9 @@ Research notes (this repo):
 Repo context:
 - `AGENTS.md` (invariants, conventions, gotchas)
 - `WORKFLOW.md` (end-to-end process)
-- `thinktocad/mcp/build123d_server.py`, `freecad_server.py`, `matlab_server.py`
-- `thinktocad/runtime/design_agent.py`
+- `thinktocad/` (installable package: tools, runtime, mcp, evals)
+- `thinktocad/mcp/server.py` (the domain-layer MCP server)
+- External backends: `build123d-mcp`, `freecad-mcp`, `matlab-mcp`
 
 Provider docs (cited in research notes):
 - OpenAI: Function calling, Responses API, Agents SDK, Agents API, tool search, guardrails, programmatic tool calling.
