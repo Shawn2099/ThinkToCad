@@ -290,7 +290,15 @@ def safe_tool(
 
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            bound = inspect.signature(fn).bind(*args, **kwargs)
+            try:
+                bound = inspect.signature(fn).bind(*args, **kwargs)
+                bound.apply_defaults()
+            except TypeError as exc:
+                return execution.error_envelope(
+                    ErrorCode.INVALID_ARGUMENT,
+                    f"bad arguments for {tool_name}: {exc}",
+                    suggested_fix="check the tool's input schema and retry",
+                )
             return execution.run_call(
                 name=tool_name,
                 fn=fn,

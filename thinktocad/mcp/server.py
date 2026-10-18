@@ -69,6 +69,8 @@ def build_server(
     configure_context(policy=policy, trace=trace)
 
     from fastmcp import FastMCP
+    from fastmcp.tools import Tool
+    from mcp.types import ToolAnnotations
 
     from ..tools.registry import REGISTRY
     from .prompts import register_prompts
@@ -76,7 +78,18 @@ def build_server(
 
     mcp = FastMCP("thinktocad", instructions=INSTRUCTIONS)
     for tool in REGISTRY.tools():
-        mcp.add_tool(tool.handler)
+        annotations = ToolAnnotations(
+            readOnlyHint=tool.side_effect == "read",
+            destructiveHint=tool.side_effect in ("write", "exec"),
+        )
+        mcp.add_tool(
+            Tool.from_function(
+                fn=tool.handler,
+                name=tool.name,
+                description=tool.description,
+                annotations=annotations,
+            )
+        )
     register_resources(mcp)
     register_prompts(mcp)
     return mcp

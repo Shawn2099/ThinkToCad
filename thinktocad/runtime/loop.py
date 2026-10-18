@@ -86,7 +86,7 @@ class AgentLoop:
                 return RunResult("max_turns_exceeded", None, state, turns, tool_calls)
             if (
                 self.budget.max_seconds is not None
-                and time.perf_counter() - started > self.budget.max_seconds
+                and time.perf_counter() - started >= self.budget.max_seconds
             ):
                 return RunResult("budget_exceeded", None, state, turns, tool_calls)
 

@@ -12,12 +12,14 @@ from typing import Any
 from .. import paths
 
 SKILL_URI = "thinktocad://skill"
-FLOW_URI = "thinktocad://flow"
 
-
-def _read(path: Path) -> str:
+def _read(path: Path, base: Path | None = None) -> str:
+    # Guard against path traversal in templated resource URIs.
     try:
-        return path.read_text(encoding="utf-8")
+        resolved = path.resolve()
+        if base is not None and not (resolved == base.resolve() or base.resolve() in resolved.parents):
+            return f"(not found: {path})"
+        return resolved.read_text(encoding="utf-8")
     except OSError:
         return f"(not found: {path})"
 
@@ -35,7 +37,7 @@ def register_resources(mcp: Any) -> None:
         description="A mechanism entry from knowledge/mechanisms/.",
     )
     def mechanism(mechanism_id: str) -> str:
-        return _read(paths.KNOWLEDGE / "mechanisms" / f"{mechanism_id}.md")
+        return _read(paths.KNOWLEDGE / "mechanisms" / f"{mechanism_id}.md", paths.KNOWLEDGE / "mechanisms")
 
     @mcp.resource(
         "thinktocad://knowledge/constraints/{name}",
@@ -43,7 +45,7 @@ def register_resources(mcp: Any) -> None:
         description="A constraint entry from knowledge/constraints/.",
     )
     def constraint(name: str) -> str:
-        return _read(paths.KNOWLEDGE / "constraints" / f"{name}.md")
+        return _read(paths.KNOWLEDGE / "constraints" / f"{name}.md", paths.KNOWLEDGE / "constraints")
 
     @mcp.resource(
         "thinktocad://knowledge/lessons/{name}",
@@ -51,7 +53,7 @@ def register_resources(mcp: Any) -> None:
         description="A lesson from knowledge/lessons/.",
     )
     def lesson(name: str) -> str:
-        return _read(paths.KNOWLEDGE / "lessons" / f"{name}.md")
+        return _read(paths.KNOWLEDGE / "lessons" / f"{name}.md", paths.KNOWLEDGE / "lessons")
 
     @mcp.resource(
         "thinktocad://knowledge/graph",
@@ -59,7 +61,7 @@ def register_resources(mcp: Any) -> None:
         description="The knowledge graph: entities and relationships.",
     )
     def graph() -> str:
-        return _read(paths.KNOWLEDGE / "graph.yaml")
+        return _read(paths.KNOWLEDGE / "graph.yaml", paths.KNOWLEDGE)
 
     @mcp.resource(
         "thinktocad://contracts/{name}",
@@ -67,4 +69,4 @@ def register_resources(mcp: Any) -> None:
         description="A design contract from contracts/.",
     )
     def contract(name: str) -> str:
-        return _read(paths.CONTRACTS / f"{name}.yaml")
+        return _read(paths.CONTRACTS / f"{name}.yaml", paths.CONTRACTS)

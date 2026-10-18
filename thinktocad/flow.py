@@ -46,7 +46,7 @@ STAGE_ORDER: list[Stage] = [
 STAGE_GATE: dict[Stage, str] = {
     Stage.SPECIFY: "G1",
     Stage.VALIDATE: "G2",
-    Stage.REVIEW: "G3",
+    Stage.REVIEW: "G4",
 }
 
 CONFIDENCE_SUBSCORES = (

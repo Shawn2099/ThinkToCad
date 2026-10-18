@@ -1,0 +1,10 @@
+design: height_lock
+attempt: 2
+status: passed
+mechanism: slotted_bracket
+verification:
+  mass_kg: 0.3
+credibility: executed_solver_result
+visual: null
+notes: null
+timestamp: '2026-10-19T05:00:34'
