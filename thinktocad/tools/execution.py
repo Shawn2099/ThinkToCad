@@ -97,6 +97,7 @@ class ExecutionContext:
     breaker: CircuitBreaker | None = None
     approved: bool = False
     cancelled: bool = False
+    disabled_tools: set[str] = field(default_factory=set)
 
 
 def error_envelope(
@@ -171,6 +172,11 @@ def run_call(
     if ctx.cancelled:
         return _finish(ctx, name, started,
                        error_envelope(ErrorCode.CANCELLED, "run cancelled"))
+
+    if name in ctx.disabled_tools:
+        return _finish(ctx, name, started, error_envelope(
+            ErrorCode.POLICY_DENIED, f"tool disabled by ablation: {name}",
+            suggested_fix="enable this tool or run without ablation"))
 
     try:
         args = ctx.guardrails.run_input(name, args)

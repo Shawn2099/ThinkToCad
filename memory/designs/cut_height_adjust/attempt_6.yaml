@@ -1,0 +1,10 @@
+design: cut_height_adjust
+attempt: 6
+status: passed
+mechanism: spacer_sleeve
+verification:
+  mass_kg: 0.3
+credibility: executed_solver_result
+visual: null
+notes: null
+timestamp: '2026-10-19T05:04:38'

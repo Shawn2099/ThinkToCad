@@ -61,3 +61,13 @@ def test_flowstate_override_is_recorded():
 
 def test_gate_registry_covers_all():
     assert set(flow.GATES) == {"G1", "G2", "G3", "G4"}
+
+
+def test_flowstate_requires_publish_gate_before_deliver():
+    # WORKFLOW.md stage 6.5: the publish gate must pass before Deliver.
+    state = FlowState(stage=Stage.REVIEW)
+    state.record_gate(flow.human_gate(True))
+    with pytest.raises(PermissionError):
+        state.advance()  # G3 (publish) still missing
+    state.record_gate(flow.publish_gate(True, True, True))
+    assert state.advance() is Stage.DELIVER

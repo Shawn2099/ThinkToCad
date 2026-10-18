@@ -41,7 +41,7 @@ def _register_tools() -> None:
     from ..tools import contracts, knowledge, verification, visual  # noqa: F401
 
 
-def configure_context(*, policy: str | None = None, trace: bool = False) -> Any:
+def configure_context(*, policy: str | None = None, trace: bool = False, ablation: set[str] | None = None) -> Any:
     """Build the execution context from arguments/environment and install it globally."""
     from ..tools.execution import ExecutionContext
     from ..tools.observability import RecordingTracer
@@ -49,7 +49,11 @@ def configure_context(*, policy: str | None = None, trace: bool = False) -> Any:
     from ..tools.registry import set_default_context
 
     selected = (policy or os.environ.get("THINKTOCAD_POLICY") or "").lower()
-    context = ExecutionContext(policy=ToolPolicy.strict() if selected == "strict" else None)
+    disabled = set(ablation or ())
+    env_disabled = os.environ.get("THINKTOCAD_DISABLE", "")
+    if env_disabled:
+        disabled |= {item.strip() for item in env_disabled.split(",") if item.strip()}
+    context = ExecutionContext(policy=ToolPolicy.strict() if selected == "strict" else None, disabled_tools=disabled)
     if trace or os.environ.get("THINKTOCAD_TRACE"):
         context.tracer = RecordingTracer()
     set_default_context(context)
@@ -57,7 +61,8 @@ def configure_context(*, policy: str | None = None, trace: bool = False) -> Any:
 
 
 def build_server(
-    root: str | None = None, policy: str | None = None, trace: bool = False
+    root: str | None = None, policy: str | None = None, trace: bool = False,
+    ablation: set[str] | None = None,
 ) -> Any:
     """Build the FastMCP server: tools + resources + prompts."""
     if root:
@@ -66,7 +71,7 @@ def build_server(
         paths.set_root(root)
 
     _register_tools()
-    configure_context(policy=policy, trace=trace)
+    configure_context(policy=policy, trace=trace, ablation=ablation)
 
     from fastmcp import FastMCP
     from fastmcp.tools import Tool
@@ -102,8 +107,10 @@ def main() -> None:
     parser.add_argument("--root", default=None, help="repo root (overrides discovery)")
     parser.add_argument("--policy", default=None, choices=["permissive", "strict"])
     parser.add_argument("--trace", action="store_true", help="record per-tool spans")
+    parser.add_argument("--ablation", default=None, help="comma-separated tool names to disable")
     args = parser.parse_args()
-    build_server(root=args.root, policy=args.policy, trace=args.trace).run()
+    ablation = {x.strip() for x in args.ablation.split(",")} if args.ablation else None
+    build_server(root=args.root, policy=args.policy, trace=args.trace, ablation=ablation).run()
 
 
 if __name__ == "__main__":

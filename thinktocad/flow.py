@@ -42,11 +42,13 @@ STAGE_ORDER: list[Stage] = [
     Stage.LEARN,
 ]
 
-#: Which gate must pass before leaving each stage.
-STAGE_GATE: dict[Stage, str] = {
-    Stage.SPECIFY: "G1",
-    Stage.VALIDATE: "G2",
-    Stage.REVIEW: "G4",
+#: Which gates must pass before leaving each stage. A stage can require several (the
+#: Review -> Deliver transition needs both the human gate G4 and the publish gate G3,
+#: matching WORKFLOW.md stages 6, 6.5 and 7).
+STAGE_GATE: dict[Stage, list[str]] = {
+    Stage.SPECIFY: ["G1"],
+    Stage.VALIDATE: ["G2"],
+    Stage.REVIEW: ["G4", "G3"],
 }
 
 CONFIDENCE_SUBSCORES = (
@@ -129,10 +131,16 @@ class FlowState:
     overrides: list[dict] = field(default_factory=list)
 
     def advance(self) -> Stage:
-        """Move to the next stage (requires the current stage's gate to have passed)."""
-        gate = STAGE_GATE.get(self.stage)
-        if gate and not self.gate_results.get(gate, {}).get("passed"):
-            raise PermissionError(f"cannot leave {self.stage.value}: gate {gate} not passed")
+        """Move to the next stage (requires the current stage's gates to have passed)."""
+        missing = [
+            gate
+            for gate in STAGE_GATE.get(self.stage, [])
+            if not self.gate_results.get(gate, {}).get("passed")
+        ]
+        if missing:
+            raise PermissionError(
+                f"cannot leave {self.stage.value}: gate {', '.join(missing)} not passed"
+            )
         index = STAGE_ORDER.index(self.stage)
         if index + 1 >= len(STAGE_ORDER):
             return self.stage

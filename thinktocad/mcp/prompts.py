@@ -50,8 +50,8 @@ def flow_text() -> str:
     """The full 8-stage flow and its four gates."""
     lines = ["# ThinkToCad design flow", "", "Stages:"]
     for index, stage in enumerate(flow.STAGE_ORDER, 1):
-        gate = flow.STAGE_GATE.get(stage)
-        suffix = f"  [gate {gate}]" if gate else ""
+        gates = flow.STAGE_GATE.get(stage, [])
+        suffix = f"  [gate {', '.join(gates)}]" if gates else ""
         lines.append(f"{index}. {stage.value}{suffix} - {_STAGE_HINTS[stage]}")
     lines += [
         "",
@@ -80,9 +80,11 @@ def stage_text(stage: str) -> str:
         valid = ", ".join(item.value for item in flow.STAGE_ORDER)
         return f"Unknown stage {stage!r}. Valid stages: {valid}."
     lines = [f"# Stage: {selected.value}", _STAGE_HINTS[selected]]
-    gate = flow.STAGE_GATE.get(selected)
-    if gate:
-        lines.append(f"Before leaving this stage, pass gate {gate} (use the check_gate tool).")
+    gates = flow.STAGE_GATE.get(selected, [])
+    if gates:
+        lines.append(
+            f"Before leaving this stage, pass gate {', '.join(gates)} (use the check_gate tool)."
+        )
     return "\n".join(lines)
 
 

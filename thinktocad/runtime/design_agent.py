@@ -67,6 +67,7 @@ def design(
     context: ExecutionContext | None = None,
     budget: Budget | None = None,
     initial_state: dict | None = None,
+    ablation: set[str] | None = None,
 ) -> RunResult:
     """Run the agent loop for a contract.
 
@@ -83,6 +84,10 @@ def design(
         "knowledge": knowledge,
         **(initial_state or {}),
     }
+    if ablation:
+        ctx = context or ExecutionContext()
+        ctx.disabled_tools = set(ablation)
+        context = ctx
     loop = AgentLoop(registry=REGISTRY, context=context, budget=budget)
     return loop.run(model_fn, state)
 
