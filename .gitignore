@@ -1,0 +1,17 @@
+﻿# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Build artifacts (regenerate from scripts)
+*.stl
+*.step
+*.dxf
+*.FCStd
+output/
+
+# Temp
+*.tmp

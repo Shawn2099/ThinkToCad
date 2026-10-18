@@ -1,0 +1,38 @@
+# Contract template. Copy to contracts/<name>.yaml and fill in.
+# A contract defines ONE design item: function + constraints + candidate mechanisms + validation.
+
+name: example_part
+function: "One-sentence description of what this part must do"
+
+constraints:
+  # Every constraint is a number or a stock size. No prose.
+  motor_rise_mm: 0
+  deck_clearance_mm: 1.0
+  shaft_length_mm: 17
+  mass_budget_kg: 0.5
+
+mechanisms:
+  # Candidate mechanisms from knowledge/mechanisms/. Agent tries in order.
+  - spacer_sleeve
+  - slotted_bracket
+  - cam_pin
+
+validation:
+  - type: interference
+    tool: freecad
+    max_mm3: 0
+  - type: clearance
+    tool: freecad
+    min_mm: 1.0
+  - type: mass
+    tool: freecad
+    max_kg: 0.5
+  - type: sim
+    tool: matlab
+    checks: [torque, stability]
+
+deliverables:
+  - step_file
+  - techdraw_pdf
+  - bom_entry
+  - git_commit

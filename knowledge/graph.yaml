@@ -1,0 +1,71 @@
+# Knowledge graph: entities and relationships for mechanical design.
+# Format: entities (nodes) + edges (relationships).
+# Relationship types: requires, conflicts_with, replaces, alternative_to,
+#   constrained_by, verified_by, sourced_from.
+
+entities:
+  mechanisms:
+    - id: spacer_sleeve
+      type: mechanism
+      description: "Stack of washers/sleeves to raise deck without moving motor"
+      pros: ["simple", "cheap", "no new holes"]
+      cons: ["limited range", "adds stack height"]
+    - id: slotted_bracket
+      type: mechanism
+      description: "Bracket with slotted holes allowing vertical adjustment"
+      pros: ["continuous range", "reversible"]
+      cons: ["needs clearance", "more parts"]
+    - id: cam_pin
+      type: mechanism
+      description: "Eccentric cam pin for fine height adjustment"
+      pros: ["fine control", "compact"]
+      cons: ["complex machining", "wear"]
+
+  constraints:
+    - id: motor_rise_zero
+      type: constraint
+      description: "Motor must not move vertically (shaft alignment)"
+    - id: deck_clearance_min
+      type: constraint
+      description: "Minimum clearance between deck and blade path"
+    - id: manufacturable_local
+      type: constraint
+      description: "Must be buildable in a small workshop with hand tools"
+
+  tools:
+    - id: build123d
+      type: tool
+      role: geometry_creation
+    - id: freecad
+      type: tool
+      role: verification
+    - id: matlab
+      type: tool
+      role: simulation
+
+edges:
+  - from: slotted_bracket
+    to: motor_rise_zero
+    relation: satisfies
+  - from: spacer_sleeve
+    to: motor_rise_zero
+    relation: satisfies
+  - from: cam_pin
+    to: motor_rise_zero
+    relation: satisfies
+  - from: slotted_bracket
+    to: deck_clearance_min
+    relation: constrained_by
+  - from: slotted_bracket
+    to: manufacturable_local
+    relation: conflicts_with
+    note: "slotted holes need milling; check workshop capability"
+  - from: spacer_sleeve
+    to: freecad
+    relation: verified_by
+  - from: slotted_bracket
+    to: freecad
+    relation: verified_by
+  - from: cam_pin
+    to: freecad
+    relation: verified_by
