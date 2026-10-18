@@ -23,27 +23,29 @@ not necessarily implemented — check the code before relying on it.
 
 - `pip install -e .` — core deps (pyyaml, fastmcp)
 - `pip install -e .[cad]` — adds build123d + cadquery
-- `pip install -e .[dev]` — adds pytest + ruff (but there are no tests or lint config)
+- `pip install -e .[dev]` — adds pytest + ruff (tests live in `tests/`)
 - `python -m thinktocad.runtime.design_agent <contract_name>` — loads
   `contracts/<name>.yaml`; the loop needs a `step_fn` that is not wired up yet.
 - `thinktocad-install-skill` — copies root `SKILLS.md` + `skills/` + `knowledge/` +
   `contracts/` into `~/.claude/skills/thinktocad`.
-- MCP servers: `python -m thinktocad.mcp.build123d_server` / `freecad_server` /
-  `matlab_server`. These have **no console scripts** — `build123d-mcp` / `freecad-mcp` /
-  `matlab-mcp` are the *external* servers (pzfreo, neka-nat, MathWorks); declaring them
-  here would shadow those installs.
+- `thinktocad-mcp` — the product MCP server (knowledge / contracts / DFM gate / memory),
+  also `python -m thinktocad.mcp.server`. Exposes the **domain layer only**.
+- Legacy per-backend modules `thinktocad.mcp.build123d_server` / `freecad_server` /
+  `matlab_server` exist but are **not** the product surface — geometry/verify/sim come
+  from the external `build123d-mcp` / `freecad-mcp` / `matlab-mcp` servers (pzfreo,
+  neka-nat, MathWorks). Declaring those names here would shadow those installs.
 - Windows (this environment): the README's `&` background syntax is Unix-only —
   drop it or use `Start-Process`.
 
 ## What actually works vs. what is stubbed
 
-- Works: `build123d_server.create_part` (executes code in a subprocess; artifacts
-  land in `<root>/output/run_*/`, gitignored) and `validate_code`.
+- Works: the domain tool layer in `thinktocad/tools/` (canonical registry + structured
+  envelopes + knowledge / contracts / DFM gate / memory), served by `thinktocad-mcp`;
+  `build123d_server.create_part` and `validate_code`.
 - Stubs: every tool in `freecad_server.py` and `matlab_server.py` returns
   `{"ok": False, "error": "... not implemented"}`; `design_agent._tool_validate`
   and `_tool_simulate` are TODOs.
-- No tests, CI, or lint/format config exist. Do not claim a change is verified by a
-  suite that isn't there.
+- Tests live in `tests/` (`pytest -q`). No CI or lint config yet.
 
 ## Invariants (the "kernel is the referee" contract)
 
