@@ -6,18 +6,25 @@ import json
 from thinktocad.scripts.init_config import CLIENTS, write_config
 
 
-def test_write_opencode(tmp_path):
+def test_opencode_command_includes_root(tmp_path):
     path = write_config("opencode", tmp_path, root="C:/repo")
-    data = json.loads(path.read_text(encoding="utf-8"))
-    entry = data["mcp"]["servers"]["thinktocad"]
+    entry = json.loads(path.read_text(encoding="utf-8"))["mcp"]["servers"]["thinktocad"]
+    assert entry["command"] == ["thinktocad-mcp", "--root", "C:/repo"]
+    assert entry["type"] == "local"
+
+
+def test_opencode_without_root(tmp_path):
+    path = write_config("opencode", tmp_path)
+    entry = json.loads(path.read_text(encoding="utf-8"))["mcp"]["servers"]["thinktocad"]
     assert entry["command"] == ["thinktocad-mcp"]
-    assert entry["environment"]["THINKTOCAD_ROOT"] == "C:/repo"
 
 
-def test_write_vscode(tmp_path):
-    path = write_config("vscode", tmp_path)
-    data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["servers"]["thinktocad"]["type"] == "stdio"
+def test_vscode_entry(tmp_path):
+    path = write_config("vscode", tmp_path, root="C:/repo")
+    entry = json.loads(path.read_text(encoding="utf-8"))["servers"]["thinktocad"]
+    assert entry["type"] == "stdio"
+    assert entry["command"] == "thinktocad-mcp"
+    assert entry["args"] == ["--root", "C:/repo"]
     assert path.name == "mcp.json"
 
 

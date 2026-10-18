@@ -77,7 +77,8 @@ policy -> cancellation -> input guardrails -> span
 ```
 
 Domain tools: `list_mechanisms`, `retrieve_knowledge`, `get_contract`, `check_contract`,
-`dfm_check`, `check_gate`, `save_attempt`, `save_lesson`.
+`dfm_check`, `check_gate`, `build_visual_check`, `record_visual_check`, `save_attempt`,
+`save_lesson`.
 
 ### MCP surface
 

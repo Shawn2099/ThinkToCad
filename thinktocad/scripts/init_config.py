@@ -7,7 +7,9 @@ Usage::
     thinktocad-init --client claude --root C:\\path\\to\\repo
     thinktocad-init --client cursor
 
-The command is idempotent: if the target file exists it is merged, not overwritten.
+``--root`` is passed to the server as ``--root PATH`` (transport-agnostic, works even
+when the client's working directory is not the repo). The command is idempotent: if the
+target file exists it is merged, not overwritten.
 """
 from __future__ import annotations
 
@@ -17,25 +19,32 @@ from pathlib import Path
 from typing import Any, Callable
 
 SERVER = "thinktocad"
-COMMAND = ["thinktocad-mcp"]
+BIN = "thinktocad-mcp"
 
 
-def _stdio_entry(root: str | None) -> dict[str, Any]:
-    entry: dict[str, Any] = {"type": "stdio", "command": "thinktocad-mcp"}
-    if root:
-        entry["env"] = {"THINKTOCAD_ROOT": root}
-    return entry
+def _argv(root: str | None) -> list[str]:
+    return [BIN] + (["--root", root] if root else [])
 
 
 def _opencode(root: str | None) -> dict[str, Any]:
-    entry: dict[str, Any] = {
-        "type": "local",
-        "timeout": {"startup": 180000},
-        "command": COMMAND,
+    return {
+        "mcp": {
+            "servers": {
+                SERVER: {
+                    "type": "local",
+                    "timeout": {"startup": 180000},
+                    "command": _argv(root),
+                }
+            }
+        }
     }
+
+
+def _stdio_entry(root: str | None) -> dict[str, Any]:
+    entry: dict[str, Any] = {"type": "stdio", "command": BIN}
     if root:
-        entry["environment"] = {"THINKTOCAD_ROOT": root}
-    return {"mcp": {"servers": {SERVER: entry}}}
+        entry["args"] = ["--root", root]
+    return entry
 
 
 def _vscode(root: str | None) -> dict[str, Any]:
@@ -88,7 +97,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Write the ThinkToCad MCP client config.")
     parser.add_argument("--client", required=True, choices=sorted(CLIENTS))
     parser.add_argument("--path", default=".", help="directory to write the config into")
-    parser.add_argument("--root", default=None, help="repo root (sets THINKTOCAD_ROOT)")
+    parser.add_argument("--root", default=None, help="repo root (passed to the server)")
     args = parser.parse_args()
 
     target = write_config(args.client, args.path, args.root)

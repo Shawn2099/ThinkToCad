@@ -37,7 +37,8 @@ def test_tools_resources_and_prompts_are_exposed():
             )
 
     tools, templates, prompts = _run(go())
-    assert len(tools) == 8 and "check_gate" in tools
+    assert len(tools) == 10 and "check_gate" in tools
+    assert "build_visual_check" in tools and "record_visual_check" in tools
     assert any("mechanisms" in uri for uri in templates)
     assert {"design_flow", "design_stage", "dfm_rules"} <= set(prompts)
 
@@ -86,3 +87,21 @@ def test_doctor_core_checks_pass():
     rows = doctor.checks()
     required_failures = [name for (name, ok, _detail, required) in rows if required and not ok]
     assert required_failures == []
+
+
+def test_server_root_override(tmp_path):
+    """`--root` makes the server read a different repo (client cwd independent)."""
+    from thinktocad import paths
+
+    original = paths.ROOT
+    (tmp_path / "knowledge" / "mechanisms").mkdir(parents=True)
+    (tmp_path / "SKILLS.md").write_text("# Fake skill", encoding="utf-8")
+    try:
+
+        async def go():
+            async with Client(build_server(root=str(tmp_path))) as client:
+                return await client.read_resource("thinktocad://skill")
+
+        assert "Fake skill" in _first_text(_run(go()))
+    finally:
+        paths.set_root(original)

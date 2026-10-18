@@ -33,3 +33,17 @@ ROOT = find_root()
 KNOWLEDGE = ROOT / "knowledge"
 CONTRACTS = ROOT / "contracts"
 MEMORY = ROOT / "memory"
+
+
+def set_root(root: str | Path) -> Path:
+    """Override the resolved root at runtime (e.g. from a ``--root`` flag).
+
+    Tool modules reference these through the module, so updating the globals here is
+    picked up by every tool call.
+    """
+    global ROOT, KNOWLEDGE, CONTRACTS, MEMORY
+    ROOT = Path(root).expanduser().resolve()
+    KNOWLEDGE = ROOT / "knowledge"
+    CONTRACTS = ROOT / "contracts"
+    MEMORY = ROOT / "memory"
+    return ROOT

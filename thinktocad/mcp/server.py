@@ -13,20 +13,18 @@ Geometry, verification and simulation are provided by the external MCP servers
 ``reports/Agentic CAD tooling landscape.md``. Keeping the tool surfaces non-overlapping
 avoids tool-selection errors (``guides/AI_AGENT_TOOLKIT_GUIDE.md`` section 2).
 
-Environment:
-    THINKTOCAD_POLICY=strict  ask before writes; deny code execution
-    THINKTOCAD_TRACE=1        record per-tool spans in memory (debugging)
+CLI::
+
+    thinktocad-mcp [--root PATH] [--policy strict] [--trace]
+
+``--root`` is the reliable way to point the server at a repo when the client's working
+directory is not the repo (env ``THINKTOCAD_ROOT`` is the fallback).
 """
 from __future__ import annotations
 
+import argparse
 import os
 from typing import Any
-
-from ..tools import contracts, knowledge, verification  # noqa: F401  (registers tools)
-from ..tools.execution import ExecutionContext
-from ..tools.observability import RecordingTracer
-from ..tools.policy import ToolPolicy
-from ..tools.registry import REGISTRY, set_default_context
 
 INSTRUCTIONS = (
     "ThinkToCad: knowledge-guided CAD design. Provides the engineering knowledge base, "
@@ -38,28 +36,44 @@ INSTRUCTIONS = (
 )
 
 
-def configure_context() -> ExecutionContext:
-    """Build the execution context from the environment and install it globally."""
-    policy = (
-        ToolPolicy.strict()
-        if os.environ.get("THINKTOCAD_POLICY", "").lower() == "strict"
-        else None
-    )
-    context = ExecutionContext(policy=policy)
-    if os.environ.get("THINKTOCAD_TRACE"):
+def _register_tools() -> None:
+    # Importing the modules runs their @safe_tool registrations.
+    from ..tools import contracts, knowledge, verification, visual  # noqa: F401
+
+
+def configure_context(*, policy: str | None = None, trace: bool = False) -> Any:
+    """Build the execution context from arguments/environment and install it globally."""
+    from ..tools.execution import ExecutionContext
+    from ..tools.observability import RecordingTracer
+    from ..tools.policy import ToolPolicy
+    from ..tools.registry import set_default_context
+
+    selected = (policy or os.environ.get("THINKTOCAD_POLICY") or "").lower()
+    context = ExecutionContext(policy=ToolPolicy.strict() if selected == "strict" else None)
+    if trace or os.environ.get("THINKTOCAD_TRACE"):
         context.tracer = RecordingTracer()
     set_default_context(context)
     return context
 
 
-def build_server() -> Any:
+def build_server(
+    root: str | None = None, policy: str | None = None, trace: bool = False
+) -> Any:
     """Build the FastMCP server: tools + resources + prompts."""
+    if root:
+        from .. import paths
+
+        paths.set_root(root)
+
+    _register_tools()
+    configure_context(policy=policy, trace=trace)
+
     from fastmcp import FastMCP
 
+    from ..tools.registry import REGISTRY
     from .prompts import register_prompts
     from .resources import register_resources
 
-    configure_context()
     mcp = FastMCP("thinktocad", instructions=INSTRUCTIONS)
     for tool in REGISTRY.tools():
         mcp.add_tool(tool.handler)
@@ -69,7 +83,14 @@ def build_server() -> Any:
 
 
 def main() -> None:
-    build_server().run()
+    parser = argparse.ArgumentParser(
+        prog="thinktocad-mcp", description="ThinkToCad MCP server (stdio)."
+    )
+    parser.add_argument("--root", default=None, help="repo root (overrides discovery)")
+    parser.add_argument("--policy", default=None, choices=["permissive", "strict"])
+    parser.add_argument("--trace", action="store_true", help="record per-tool spans")
+    args = parser.parse_args()
+    build_server(root=args.root, policy=args.policy, trace=args.trace).run()
 
 
 if __name__ == "__main__":
