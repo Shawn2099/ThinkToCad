@@ -22,11 +22,22 @@ class ErrorCode:
     DESIGN_RULE_VIOLATION = "DESIGN_RULE_VIOLATION"  # a gate refused the action
     CONTRACT_INVALID = "CONTRACT_INVALID"        # contract failed its schema check
     INTERNAL_ERROR = "INTERNAL_ERROR"            # unexpected; permanent
+    POLICY_DENIED = "POLICY_DENIED"              # permanent; a deny rule matched
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"      # HITL pause; retry after approval
+    UNSAFE_CODE = "UNSAFE_CODE"                  # permanent; static screen failed
+    GUARDRAIL_TRIPPED = "GUARDRAIL_TRIPPED"      # permanent; a tripwire fired
+    CIRCUIT_OPEN = "CIRCUIT_OPEN"                # transient; a dependency is failing
+    CANCELLED = "CANCELLED"                      # run cancelled
 
 
 # Codes that are safe to retry without changing the input.
 RETRYABLE_AS_IS: frozenset[str] = frozenset(
-    {ErrorCode.TIMEOUT, ErrorCode.BACKEND_UNAVAILABLE}
+    {
+        ErrorCode.TIMEOUT,
+        ErrorCode.BACKEND_UNAVAILABLE,
+        ErrorCode.CIRCUIT_OPEN,
+        ErrorCode.APPROVAL_REQUIRED,
+    }
 )
 
 

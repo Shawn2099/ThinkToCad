@@ -2,18 +2,17 @@
 
 Implements ``guides/AI_AGENT_TOOLKIT_GUIDE.md``:
 
-* section 3 - one canonical ``ToolDefinition`` (name, description, JSON Schema,
-  side-effect class) adapted at the MCP boundary;
-* section 4 - a registry as the single source of truth, last-write-wins;
-* section 5 - per-tool timeout; never let one hung tool block the turn;
+* section 3 - one canonical ``ToolDefinition`` adapted at the provider boundary;
+* section 4 - a registry as the single source of truth (last-write-wins);
+* section 5 - per-tool timeout, read-parallel / write-sequential batch execution,
+  call-order preservation, sibling-failure isolation;
 * section 6 - structured error envelope; never raise into the loop.
 
 A tool is a plain function whose body returns the ``data`` payload or raises
-:class:`~thinktocad.tools.errors.ToolError`. The :func:`safe_tool` decorator wraps it
-so the callable exposed to the agent always returns::
+:class:`~thinktocad.tools.errors.ToolError`. :func:`safe_tool` registers it and returns a
+wrapper that runs the full pipeline (see :mod:`.execution`) and always returns::
 
-    {"ok": bool,
-     "data": <payload> | None,
+    {"ok": bool, "data": <payload> | None,
      "error": {code, message, retryable, suggested_fix, details} | None}
 """
 from __future__ import annotations
@@ -22,18 +21,13 @@ import functools
 import inspect
 import types
 import typing
-from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as FuturesTimeout
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
+from . import execution
 from .errors import ErrorCode, ToolError
 
 SideEffect = Literal["read", "write", "exec", "orchestrate"]
-
-# Shared pool so per-tool timeouts do not spawn a thread per call. A timed-out tool is
-# abandoned (guide section 5); the worker thread finishes in the background.
-_EXECUTOR = ThreadPoolExecutor(max_workers=4, thread_name_prefix="thinktocad")
 
 
 # --------------------------------------------------------------------------- #
@@ -53,28 +47,15 @@ def err(
     details: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build an error envelope."""
-    return {
-        "ok": False,
-        "data": None,
-        "error": {
-            "code": code,
-            "message": message,
-            "retryable": retryable,
-            "suggested_fix": suggested_fix,
-            "details": details or {},
-        },
-    }
+    return execution.error_envelope(
+        code, message, retryable=retryable, suggested_fix=suggested_fix, details=details
+    )
 
 
 # --------------------------------------------------------------------------- #
 # Schema generation
 # --------------------------------------------------------------------------- #
-_PY_TO_JSON: dict[Any, str] = {
-    str: "string",
-    int: "integer",
-    float: "number",
-    bool: "boolean",
-}
+_PY_TO_JSON: dict[Any, str] = {str: "string", int: "integer", float: "number", bool: "boolean"}
 
 
 def _type_schema(ann: Any) -> dict[str, Any]:
@@ -120,16 +101,22 @@ def schema_from_signature(fn: Callable[..., Any]) -> dict[str, Any]:
 
 
 # --------------------------------------------------------------------------- #
-# Definition + registry
+# Definition
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
 class ToolDefinition:
-    """The durable unit (guide section 3)."""
+    """The durable unit (guide section 3).
+
+    ``fn`` is the raw implementation (returns ``data`` or raises ``ToolError``) and is
+    what the pipeline executes; ``handler`` is the wrapped callable that always returns
+    an envelope and is what the MCP/provider boundary exposes.
+    """
 
     name: str
     description: str
     input_schema: dict[str, Any]
     side_effect: SideEffect
+    fn: Callable[..., Any]
     handler: Callable[..., dict[str, Any]]
     output_schema: dict[str, Any] | None = None
     timeout_s: float | None = 30.0
@@ -137,6 +124,9 @@ class ToolDefinition:
     max_retries: int = 2
 
 
+# --------------------------------------------------------------------------- #
+# Registry
+# --------------------------------------------------------------------------- #
 class ToolRegistry:
     """A queryable catalogue of tools; last-write-wins on duplicate names."""
 
@@ -178,36 +168,104 @@ class ToolRegistry:
 
     def execute(self, name: str, **kwargs: Any) -> dict[str, Any]:
         """Execute a tool by name; always returns an envelope, never raises."""
+        return self.execute_with(name, kwargs)
+
+    def execute_with(
+        self, name: str, args: dict[str, Any], ctx: execution.ExecutionContext | None = None
+    ) -> dict[str, Any]:
         try:
             tool = self.get(name)
         except ToolError as exc:
             return {"ok": False, "data": None, "error": exc.to_error()}
-        return tool.handler(**kwargs)
+        return execution.run_call(
+            name=tool.name,
+            fn=tool.fn,
+            args=dict(args),
+            ctx=ctx or DEFAULT_CONTEXT,
+            side_effect=tool.side_effect,
+            timeout_s=tool.timeout_s,
+            retryable=tool.retryable,
+            max_attempts=1 + tool.max_retries,
+        )
+
+    def execute_all(
+        self, calls: list[dict[str, Any]], ctx: execution.ExecutionContext | None = None
+    ) -> list[dict[str, Any]]:
+        """Run a batch in order: reads in parallel, writes sequentially.
+
+        Call order is preserved in the output list and a failed call never discards its
+        successful siblings (guide section 5).
+        """
+        ctx = ctx or DEFAULT_CONTEXT
+        results: list[dict[str, Any] | None] = [None] * len(calls)
+        reads: list[tuple[int, ToolDefinition, dict]] = []
+        writes: list[tuple[int, ToolDefinition, dict]] = []
+
+        for index, call in enumerate(calls):
+            try:
+                tool = self.get(call["name"])
+            except ToolError as exc:
+                results[index] = {"ok": False, "data": None, "error": exc.to_error()}
+                continue
+            bucket = reads if tool.side_effect == "read" else writes
+            bucket.append((index, tool, call))
+
+        if reads:
+            futures = {
+                index: execution.BATCH_EXECUTOR.submit(
+                    execution.run_call,
+                    name=tool.name,
+                    fn=tool.fn,
+                    args=dict(call.get("args", {})),
+                    ctx=ctx,
+                    side_effect=tool.side_effect,
+                    timeout_s=tool.timeout_s,
+                    call_id=call.get("call_id", ""),
+                    retryable=tool.retryable,
+                    max_attempts=1 + tool.max_retries,
+                )
+                for index, tool, call in reads
+            }
+            for index, future in futures.items():
+                try:
+                    results[index] = future.result()
+                except Exception as exc:  # noqa: BLE001
+                    results[index] = err(
+                        ErrorCode.INTERNAL_ERROR, f"{type(exc).__name__}: {exc}"
+                    )
+
+        for index, tool, call in writes:
+            results[index] = execution.run_call(
+                name=tool.name,
+                fn=tool.fn,
+                args=dict(call.get("args", {})),
+                ctx=ctx,
+                side_effect=tool.side_effect,
+                timeout_s=tool.timeout_s,
+                call_id=call.get("call_id", ""),
+                retryable=tool.retryable,
+                max_attempts=1 + tool.max_retries,
+            )
+
+        return results  # type: ignore[return-value]
 
 
 #: Process-wide registry populated by the ``@safe_tool`` decorator.
 REGISTRY = ToolRegistry()
 
+#: Default execution context (tracing, metrics, policy, guardrails, retry).
+DEFAULT_CONTEXT = execution.ExecutionContext()
+
+
+def set_default_context(ctx: execution.ExecutionContext) -> None:
+    """Replace the process-wide default execution context."""
+    global DEFAULT_CONTEXT
+    DEFAULT_CONTEXT = ctx
+
 
 # --------------------------------------------------------------------------- #
 # The @safe_tool decorator
 # --------------------------------------------------------------------------- #
-def _run_with_timeout(
-    fn: Callable[..., Any], timeout_s: float | None, kwargs: dict[str, Any]
-) -> Any:
-    if not timeout_s:
-        return fn(**kwargs)
-    future = _EXECUTOR.submit(fn, **kwargs)
-    try:
-        return future.result(timeout=timeout_s)
-    except FuturesTimeout:
-        raise ToolError(
-            ErrorCode.TIMEOUT,
-            f"tool exceeded its {timeout_s:g}s budget",
-            suggested_fix="reduce the request scope or raise this tool's timeout",
-        ) from None
-
-
 def safe_tool(
     *,
     name: str | None = None,
@@ -219,36 +277,38 @@ def safe_tool(
     output_schema: dict[str, Any] | None = None,
     registry: ToolRegistry = REGISTRY,
 ) -> Callable[[Callable[..., Any]], Callable[..., dict[str, Any]]]:
-    """Register a function as a tool that always returns a structured envelope.
+    """Register a function as a tool whose exposed callable always returns an envelope.
 
     The wrapped callable preserves the original signature and docstring so the MCP
-    boundary can generate its schema, and never raises: ``ToolError`` becomes a typed
-    error envelope, any other exception becomes ``INTERNAL_ERROR``.
+    boundary can generate its schema, and never raises: the full pipeline (policy,
+    guardrails, retry, timeout, tracing) runs inside :func:`.execution.run_call`.
     """
 
     def deco(fn: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
+        tool_name = name or fn.__name__
+
         @functools.wraps(fn)
         def wrapper(*args: Any, **kwargs: Any) -> dict[str, Any]:
-            try:
-                bound = inspect.signature(fn).bind(*args, **kwargs)
-                return ok(_run_with_timeout(fn, timeout_s, dict(bound.arguments)))
-            except ToolError as exc:
-                return {"ok": False, "data": None, "error": exc.to_error()}
-            except Exception as exc:  # noqa: BLE001 - the whole point: never raise
-                return err(
-                    ErrorCode.INTERNAL_ERROR,
-                    f"{type(exc).__name__}: {exc}",
-                    retryable=False,
-                    suggested_fix="report this as a bug; do not retry unchanged",
-                )
+            bound = inspect.signature(fn).bind(*args, **kwargs)
+            return execution.run_call(
+                name=tool_name,
+                fn=fn,
+                args=dict(bound.arguments),
+                ctx=DEFAULT_CONTEXT,
+                side_effect=side_effect,
+                timeout_s=timeout_s,
+                retryable=retryable,
+                max_attempts=1 + max_retries,
+            )
 
         wrapper.__signature__ = inspect.signature(fn)  # type: ignore[attr-defined]
         registry.register(
             ToolDefinition(
-                name=name or fn.__name__,
+                name=tool_name,
                 description=(description or (fn.__doc__ or "").strip()),
                 input_schema=schema_from_signature(fn),
                 side_effect=side_effect,
+                fn=fn,
                 handler=wrapper,
                 output_schema=output_schema,
                 timeout_s=timeout_s,
